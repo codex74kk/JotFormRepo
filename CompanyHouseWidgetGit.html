@@ -130,6 +130,7 @@
 
       // If not OK, try to read JSON error body, else throw status text
       if (!res.ok) {
+        console.log('@res==>'+res);
         let errText = `Error ${res.status}: ${res.statusText}`;
         try {
           const errJson = await res.json();
