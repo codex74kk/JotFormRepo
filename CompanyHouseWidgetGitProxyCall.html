@@ -71,6 +71,7 @@
       if (s && s["Company Name Field ID"])   COMPANY_NAME_FIELD_ID = s["Company Name Field ID"];
       if (s && s["Company Status Field ID"]) COMPANY_STATUS_FIELD_ID = s["Company Status Field ID"];
       if (s && s["Company Address Field ID"])COMPANY_ADDRESS_FIELD_ID = s["Company Address Field ID"];
+      if (s && s["Company Number Field ID"])COMPANY_NUMBER_FIELD_ID = s["Company Number Field ID"];
     }
 
     // Companies House API Basic Auth (NOTE: exposed in browser if used directly)
@@ -96,7 +97,8 @@
     function populateJotformFields(companyName, companyStatus, companyAddress) {
       const payload = [
         { id: COMPANY_NAME_FIELD_ID, value: companyName || "" },
-        { id: COMPANY_STATUS_FIELD_ID, value: companyStatus || "" }
+        { id: COMPANY_STATUS_FIELD_ID, value: companyStatus || "" },
+        { id: COMPANY_NUMBER_FIELD_ID, value: companyNumber || "" }
       ];
       //,{ id: COMPANY_ADDRESS_FIELD_ID, value: companyAddress || "" }
       JFCustomWidget.setFieldsValueById(payload);
@@ -193,6 +195,7 @@
               
               let companyName = data.company_name || "N/A";
               let companyStatus = data.company_status || "N/A";
+              let companyNumber = data.company_number || "N/A";
       
               let address = "N/A";
               if (data.registered_office_address) {
@@ -211,7 +214,8 @@
               // ✅ Populate JotForm fields
               JFCustomWidget.setFieldsValueById([
                   { id: "120", value: companyName },
-                  { id: "121", value: companyStatus }
+                  { id: "121", value: companyStatus },
+                  { id: "122", value: companyNumber }
               ]);
               //{ id: "125", value: address }      
               messageDiv.addClass("success").text("✅ Company data populated");
