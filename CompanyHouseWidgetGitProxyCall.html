@@ -163,48 +163,62 @@
       }
 
       // On Search click: call API + populate fields + set widget submission payload
-      $("#searchBtn").on("click", async function () {
-        const companyNumber = ($input.val() || "").trim();
-        $msg.text("").removeClass("ok err");
-        JFCustomWidget.hideWidgetError();
-
-        if (!companyNumber) {
-          submissionData = { valid: false, value: "" };
-          showMsg("Please enter company number.", false);
-          JFCustomWidget.showWidgetError("Please enter company number.");
-          return;
-        }
-
-        try {
-          showMsg("Searching...", true);
-
-          const ch = await lookupCompany(companyNumber);
-
-          const companyName   = ch.company_name || "";
-          const companyStatus = ch.company_status || "";
-          const companyAddress= buildAddress(ch.registered_office_address);
-
-          // Populate Jotform fields
-          populateJotformFields(companyName, companyStatus, companyAddress);
-
-          // Mark widget as valid and store value (store companyNumber as widget value)
-          submissionData = { valid: true, value: companyNumber };
-
-          // Send data immediately so Jotform has latest widget state
-          // (sendData allowed anytime) [1](https://www.jotform.com/developers/widgets/)
-          JFCustomWidget.sendData(submissionData);
-
-          showMsg("✅ Success: Company details populated.", true);
-          JFCustomWidget.hideWidgetError();
-        } catch (err) {
-          submissionData = { valid: false, value: companyNumber };
-
-          // Clear populated fields if you want (optional)
-          populateJotformFields("", "", "");
-
-          showMsg("❌ " + (err && err.message ? err.message : "Lookup failed"), false);
-          JFCustomWidget.showWidgetError(err && err.message ? err.message : "Lookup failed");
-        }
+      $("#searchBtn").click(function () {
+      
+          let companyNumber = $("#companyNumber").val().trim();
+          let messageDiv = $("#message");
+      
+          messageDiv.removeClass("success error").text("");
+      
+          if (!companyNumber) {
+              messageDiv.addClass("error").text("Please enter company number");
+              return;
+          }
+      
+          // ✅ ONLY CALL WORKER (not Companies House directly)
+          fetch("https://misty-dawn-09d1.codex74kk.workers.dev/?companyNumber=" + companyNumber)
+          .then(response => {
+              if (!response.ok) {
+                  throw new Error("Error " + response.status);
+              }
+              return response.json();
+          })
+          .then(data => {
+      
+              console.log("API Response:", data);
+      
+              let companyName = data.company_name || "N/A";
+              let companyStatus = data.company_status || "N/A";
+      
+              let address = "N/A";
+              if (data.registered_office_address) {
+                  const addr = data.registered_office_address;
+      
+                  address = [
+                      addr.address_line_1,
+                      addr.address_line_2,
+                      addr.locality,
+                      addr.region,
+                      addr.postal_code,
+                      addr.country
+                  ].filter(Boolean).join(", ");
+              }
+      
+              // ✅ Populate JotForm fields
+              JFCustomWidget.setFieldsValueById([
+                  { id: "123", value: companyName },
+                  { id: "124", value: companyStatus },
+                  { id: "125", value: address }
+              ]);
+      
+              messageDiv.addClass("success").text("✅ Company data populated");
+      
+          })
+          .catch(error => {
+              console.error(error);
+              messageDiv.addClass("error").text("❌ " + error.message);
+          });
+      
       });
 
       // On submit/next, sendSubmit is required [1](https://www.jotform.com/developers/widgets/)
