@@ -96,9 +96,9 @@
     function populateJotformFields(companyName, companyStatus, companyAddress) {
       const payload = [
         { id: COMPANY_NAME_FIELD_ID, value: companyName || "" },
-        { id: COMPANY_STATUS_FIELD_ID, value: companyStatus || "" },
-        { id: COMPANY_ADDRESS_FIELD_ID, value: companyAddress || "" }
+        { id: COMPANY_STATUS_FIELD_ID, value: companyStatus || "" }
       ];
+      //,{ id: COMPANY_ADDRESS_FIELD_ID, value: companyAddress || "" }
       JFCustomWidget.setFieldsValueById(payload);
     }
 
@@ -186,7 +186,11 @@
           .then(data => {
       
               console.log("API Response:", data);
-      
+              console.log("API Response Address:", data.registered_office_address);
+              console.log("API Response Name:", data.company_name);
+              console.log("API Response Status:", data.company_status);
+              
+              
               let companyName = data.company_name || "N/A";
               let companyStatus = data.company_status || "N/A";
       
@@ -206,11 +210,10 @@
       
               // ✅ Populate JotForm fields
               JFCustomWidget.setFieldsValueById([
-                  { id: "123", value: companyName },
-                  { id: "124", value: companyStatus },
-                  { id: "125", value: address }
+                  { id: "120", value: companyName },
+                  { id: "121", value: companyStatus }
               ]);
-      
+              //{ id: "125", value: address }      
               messageDiv.addClass("success").text("✅ Company data populated");
       
           })
