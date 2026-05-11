@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <script src="//js.jotform.com/JotFormCustomWidget.min.js"></script>
+  <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
+
+  <style>
+    #companyNumber {
+      height: 2.5em;
+      min-width: 100%;
+      max-width: 100%;
+      background-color: #fff;
+      border-color: #c3cad8 !important;
+      color: #2c3345;
+      font-size: 1em;
+      border-radius: 4px;
+      border: 1px solid;
+      display: block;
+      padding: 0 .625em;
+      outline: 0;
+      margin: 0;
+      text-align: left;
+      box-sizing: border-box;
+    }
+
+    #searchBtn {
+      margin-top: 10px;
+      padding: 8px 14px;
+      background: #0078d4;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+
+    #msg {
+      margin-top: 10px;
+      font-weight: 600;
+    }
+
+    .ok { color: #107c10; }
+    .err { color: #a80000; }
+  </style>
+</head>
+
+<body>
+  <span id="labelText"></span>
+
+  <input type="text" id="companyNumber" class="form-textbox" placeholder="Enter Company Number" />
+  <button type="button" id="searchBtn">Search</button>
+
+  <div id="msg"></div>
+
+  <script type="text/javascript">
+    // ================================
+    // 1) CONFIGURATION
+    // ================================
+
+    // Option A (simple): Hardcode your Jotform field/question IDs here
+    // (These are the IDs of the fields you want to populate in the main form)
+    let COMPANY_NAME_FIELD_ID   = "120"; // <-- replace
+    let COMPANY_STATUS_FIELD_ID = "121"; // <-- replace
+    let COMPANY_ADDRESS_FIELD_ID= "122"; // <-- replace
+
+    // Option B (recommended): Read IDs from widget settings (configure in widget parameters)
+    // If present in widget settings, they override the hardcoded ones above.
+    function loadFieldIdsFromWidgetSettings() {
+      const s = JFCustomWidget.getWidgetSettings ? JFCustomWidget.getWidgetSettings() : {};
+      // Use these exact parameter names when registering widget settings:
+      // "Company Name Field ID", "Company Status Field ID", "Company Address Field ID"
+      if (s && s["Company Name Field ID"])   COMPANY_NAME_FIELD_ID = s["Company Name Field ID"];
+      if (s && s["Company Status Field ID"]) COMPANY_STATUS_FIELD_ID = s["Company Status Field ID"];
+      if (s && s["Company Address Field ID"])COMPANY_ADDRESS_FIELD_ID = s["Company Address Field ID"];
+    }
+
+    // Companies House API Basic Auth (NOTE: exposed in browser if used directly)
+    const CH_USERNAME = "9211b4d8-358b-4c88-934f-899cef8d50f0";
+    const CH_PASSWORD = ""; // blank password for Companies House key usage
+    const BASIC_AUTH  = btoa(CH_USERNAME + ":" + CH_PASSWORD);
+
+    // This holds the widget submission payload for Jotform
+    // sendSubmit() expects { valid: boolean, value: string } [1](https://www.jotform.com/developers/widgets/)
+    let submissionData = { valid: false, value: "" };
+
+    const $input = $("#companyNumber");
+    const $msg   = $("#msg");
+
+    function showMsg(text, isOk) {
+      $msg.removeClass("ok err").addClass(isOk ? "ok" : "err").text(text);
+    }
+
+    // ================================
+    // 2) POPULATE JOTFORM FIELDS
+    // ================================
+    // setFieldsValueById accepts an array of {id, value} objects [3](https://github.com/DigiBluUK/digibluuk.github.io/blob/main/TableWidget.html)[2](https://amerisourcebergen-my.sharepoint.com/personal/a157405_amerisourcebergen_com/Documents/Microsoft%20Copilot%20Chat%20Files/CompanyHouseWidget.html)
+    function populateJotformFields(companyName, companyStatus, companyAddress) {
+      const payload = [
+        { id: COMPANY_NAME_FIELD_ID, value: companyName || "" },
+        { id: COMPANY_STATUS_FIELD_ID, value: companyStatus || "" },
+        { id: COMPANY_ADDRESS_FIELD_ID, value: companyAddress || "" }
+      ];
+      JFCustomWidget.setFieldsValueById(payload);
+    }
+
+    function buildAddress(addrObj) {
+      if (!addrObj) return "";
+      return [
+        addrObj.address_line_1,
+        addrObj.address_line_2,
+        addrObj.locality,
+        addrObj.region,
+        addrObj.postal_code,
+        addrObj.country
+      ].filter(Boolean).join(", ");
+    }
+
+    // ================================
+    // 3) CALL COMPANIES HOUSE API
+    // ================================
+    async function lookupCompany(companyNumber) {
+      const url = `https://api.company-information.service.gov.uk/company/${encodeURIComponent(companyNumber)}`;
+
+      const res = await fetch(url, {
+        method: "GET",
+        headers: {
+          "Authorization": "Basic " + BASIC_AUTH,
+          "Accept": "application/json"
+        }
+      });
+
+      // If not OK, try to read JSON error body, else throw status text
+      if (!res.ok) {
+        let errText = `Error ${res.status}: ${res.statusText}`;
+        try {
+          const errJson = await res.json();
+          // Companies House often returns { errors: [...] } or { error: ... } depending on endpoint
+          if (errJson && errJson.error) errText = errJson.error;
+          if (errJson && errJson.errors && errJson.errors.length) {
+            errText = errJson.errors.map(e => e.error || e).join(" | ");
+          }
+        } catch (e) { /* ignore parse errors */ }
+        throw new Error(errText);
+      }
+
+      return await res.json();
+    }
+
+    // ================================
+    // 4) WIDGET INIT + EVENTS
+    // ================================
+    // Jotform recommends initializing inside "ready" [1](https://www.jotform.com/developers/widgets/)
+    JFCustomWidget.subscribe("ready", function (data) {
+      // Label display (same pattern as your reference widget) [2](https://amerisourcebergen-my.sharepoint.com/personal/a157405_amerisourcebergen_com/Documents/Microsoft%20Copilot%20Chat%20Files/CompanyHouseWidget.html)
+      const label = JFCustomWidget.getWidgetSetting("QuestionLabel");
+      document.getElementById("labelText").innerHTML = label || "";
+
+      // Load any field IDs provided via widget settings (optional but recommended)
+      //loadFieldIdsFromWidgetSettings();
+
+      // If editing an existing submission, data.value may contain the previous widget value
+      if (data && data.value) {
+        $input.val(data.value);
+      }
+
+      // On Search click: call API + populate fields + set widget submission payload
+      $("#searchBtn").on("click", async function () {
+        const companyNumber = ($input.val() || "").trim();
+        $msg.text("").removeClass("ok err");
+        JFCustomWidget.hideWidgetError();
+
+        if (!companyNumber) {
+          submissionData = { valid: false, value: "" };
+          showMsg("Please enter company number.", false);
+          JFCustomWidget.showWidgetError("Please enter company number.");
+          return;
+        }
+
+        try {
+          showMsg("Searching...", true);
+
+          const ch = await lookupCompany(companyNumber);
+
+          const companyName   = ch.company_name || "";
+          const companyStatus = ch.company_status || "";
+          const companyAddress= buildAddress(ch.registered_office_address);
+
+          // Populate Jotform fields
+          populateJotformFields(companyName, companyStatus, companyAddress);
+
+          // Mark widget as valid and store value (store companyNumber as widget value)
+          submissionData = { valid: true, value: companyNumber };
+
+          // Send data immediately so Jotform has latest widget state
+          // (sendData allowed anytime) [1](https://www.jotform.com/developers/widgets/)
+          JFCustomWidget.sendData(submissionData);
+
+          showMsg("✅ Success: Company details populated.", true);
+          JFCustomWidget.hideWidgetError();
+        } catch (err) {
+          submissionData = { valid: false, value: companyNumber };
+
+          // Clear populated fields if you want (optional)
+          populateJotformFields("", "", "");
+
+          showMsg("❌ " + (err && err.message ? err.message : "Lookup failed"), false);
+          JFCustomWidget.showWidgetError(err && err.message ? err.message : "Lookup failed");
+        }
+      });
+
+      // On submit/next, sendSubmit is required [1](https://www.jotform.com/developers/widgets/)
+      JFCustomWidget.subscribe("submit", function () {
+        JFCustomWidget.sendSubmit(submissionData);
+      });
+
+      // Support "populate" event (Jotform conditions prefill into widget)
+      JFCustomWidget.subscribe("populate", function (pData) {
+        const v = (pData && pData.value) ? pData.value : "";
+        $input.val(v);
+        submissionData = { valid: !!v, value: v };
+        JFCustomWidget.sendData(submissionData);
+        JFCustomWidget.hideWidgetError();
+      });
+    });
+  </script>
+</body>
+</html>
